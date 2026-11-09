@@ -48,12 +48,19 @@ jobs:
       - name: Build Debug APK
         working-directory: ${{ steps.root.outputs.dir }}
         run: |
+          set +e
           if [ -f ./gradlew ]; then
             chmod +x ./gradlew
-            ./gradlew assembleDebug --stacktrace --no-daemon
+            ./gradlew assembleDebug --console=plain --no-daemon > build.log 2>&1
           else
-            gradle assembleDebug --stacktrace --no-daemon
+            gradle assembleDebug --console=plain --no-daemon > build.log 2>&1
           fi
+          CODE=$?
+          if [ $CODE -ne 0 ]; then
+            echo "::error title=Build failed::$(grep -E -A8 'What went wrong|^e: |error:' build.log | head -n 25 | tr '\n' ' ')"
+            tail -n 60 build.log
+          fi
+          exit $CODE
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
