@@ -31,6 +31,35 @@ jobs:
           echo "dir=$(dirname "$F")" >> "$GITHUB_OUTPUT"
           echo "Android project: $(dirname "$F")"
 
+      - name: Patch Java 17 target (fixes JVM-target mismatch)
+        working-directory: ${{ steps.root.outputs.dir }}
+        run: |
+          python3 - <<'PY'
+          import re, pathlib
+          p = pathlib.Path("app/build.gradle.kts")
+          if not p.exists():
+              print("app/build.gradle.kts not found, skipping")
+              raise SystemExit
+          t = p.read_text()
+          if "compileOptions" in t:
+              print("Already patched")
+              raise SystemExit
+          patch = (
+              "    compileOptions {\n"
+              "        sourceCompatibility = JavaVersion.VERSION_17\n"
+              "        targetCompatibility = JavaVersion.VERSION_17\n"
+              "    }\n"
+              "    kotlinOptions {\n"
+              "        jvmTarget = \"17\"\n"
+              "    }\n"
+          )
+          t2 = re.sub(r"(\n\s*buildFeatures)", "\n" + patch + r"\1", t, count=1)
+          if t2 == t:
+              t2 = re.sub(r"(android\s*\{)", r"\1\n" + patch, t, count=1)
+          p.write_text(t2)
+          print("Patched app/build.gradle.kts")
+          PY
+
       - name: Setup JDK 17
         uses: actions/setup-java@v4
         with:
