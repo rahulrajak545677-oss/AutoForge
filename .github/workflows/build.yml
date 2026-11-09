@@ -19,10 +19,10 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Accept Android licenses
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
 
-      - name: Setup Gradle (no wrapper fallback)
+      - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 8.7
@@ -31,4 +31,22 @@ jobs:
         id: root
         run: |
           F=$(find . -maxdepth 3 \( -name settings.gradle -o -name settings.gradle.kts \) | head -n 1)
-          if [ -z "$F" ]; then echo "No sett
+          if [ -z "$F" ]; then echo "No settings.gradle found"; exit 1; fi
+          echo "dir=$(dirname "$F")" >> "$GITHUB_OUTPUT"
+
+      - name: Build Debug APK
+        working-directory: ${{ steps.root.outputs.dir }}
+        run: |
+          if [ -f ./gradlew ]; then
+            chmod +x ./gradlew
+            ./gradlew assembleDebug --stacktrace --no-daemon
+          else
+            gradle assembleDebug --stacktrace --no-daemon
+          fi
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-apk
+          path: "**/build/outputs/apk/**/*.apk"
+          if-no-files-found: error
