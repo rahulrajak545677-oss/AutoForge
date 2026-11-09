@@ -2,7 +2,6 @@ name: Build Android APK
 
 on:
   push:
-  pull_request:
   workflow_dispatch:
 
 jobs:
@@ -12,6 +11,25 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+
+      - name: Unzip project if repo contains a zip
+        run: |
+          for z in $(find . -maxdepth 2 -name '*.zip' -not -path './.git/*'); do
+            echo "Unzipping $z"
+            unzip -oq "$z" -d "$(dirname "$z")"
+          done
+
+      - name: Find Android project
+        id: root
+        run: |
+          F=$(find . -maxdepth 6 \( -name settings.gradle -o -name settings.gradle.kts \) -not -path './.git/*' | head -n 1)
+          if [ -z "$F" ]; then
+            echo "::error::No settings.gradle(.kts) found. Files in repo:"
+            find . -maxdepth 4 -not -path './.git/*' | head -n 80
+            exit 1
+          fi
+          echo "dir=$(dirname "$F")" >> "$GITHUB_OUTPUT"
+          echo "Android project: $(dirname "$F")"
 
       - name: Setup JDK 17
         uses: actions/setup-java@v4
@@ -25,14 +43,7 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: 8.7
-
-      - name: Find project root
-        id: root
-        run: |
-          F=$(find . -maxdepth 3 \( -name settings.gradle -o -name settings.gradle.kts \) | head -n 1)
-          if [ -z "$F" ]; then echo "No settings.gradle found"; exit 1; fi
-          echo "dir=$(dirname "$F")" >> "$GITHUB_OUTPUT"
+          gradle-version: 8.10.2
 
       - name: Build Debug APK
         working-directory: ${{ steps.root.outputs.dir }}
@@ -47,6 +58,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug-apk
-          path: "**/build/outputs/apk/**/*.apk"
+          name: AutoForge-debug-apk
+          path: "**/build/outputs/apk/debug/*.apk"
           if-no-files-found: error
